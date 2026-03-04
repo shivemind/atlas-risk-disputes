@@ -1,0 +1,17 @@
+{
+  "workspace": {
+    "id": "872c0588-477b-472b-8782-da47e22647de"
+  },
+  "entities": {
+    "collections": [
+      "../postman/collections/atlas-payments-atlas-risk-disputes-api_51415493-0a9e7b4e-577e-45f5-b39e-c91fad4dd342.postman_collection.json",
+      "../postman/collections/Atlas Risk & Disputes API_51415493-38699200-5880-4c5f-9b8d-f6ba0a0002fb.postman_collection.json"
+    ],
+    "environments": [
+      "../postman/environments/Atlas Risk & Disputes - Production_fd1c8393-f43b-48fa-8c5b-1be5f71d2d37.postman_environment.json"
+    ],
+    "specs": [],
+    "flows": [],
+    "globals": []
+  }
+}
