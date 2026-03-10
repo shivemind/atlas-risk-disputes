@@ -1,0 +1,46 @@
+name: Sync OpenAPI to Postman
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "openapi/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  POSTMAN_API_BASE: https://api.getpostman.com
+  SPEC_PATH: openapi/openapi.yaml
+
+jobs:
+  sync:
+    name: Sync spec to Postman Spec Hub
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify spec exists
+        run: |
+          if [ ! -f "$SPEC_PATH" ]; then
+            echo "::error::OpenAPI spec not found at $SPEC_PATH"
+            exit 1
+          fi
+          echo "Found spec at $SPEC_PATH"
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+
+      - name: Sync to Postman
+        env:
+          POSTMAN_API_KEY: ${{ secrets.POSTMAN_API_KEY }}
+          POSTMAN_WORKSPACE_ID: ${{ secrets.POSTMAN_WORKSPACE_ID }}
+        run: |
+          chmod +x scripts/sync-to-postman.sh
+          ./scripts/sync-to-postman.sh "$SPEC_PATH"

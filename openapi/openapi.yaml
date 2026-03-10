@@ -1,0 +1,2994 @@
+openapi: 3.1.0
+info:
+  title: Atlas Risk & Disputes API
+  version: 0.2.0
+  description: Risk engine, fraud signals, dispute management, evidence, and representment
+  contact:
+    name: AtlasPayments Team
+    url: https://github.com/shivemind/atlaspayments
+servers:
+  - url: http://localhost:3003
+    description: Local development server. Override via Postman {{baseUrl}} environment variable.
+tags:
+  - name: RiskRules
+    description: Risk ruleset configuration and management
+  - name: RiskSignals
+    description: Risk signal ingestion
+  - name: RiskDecisions
+    description: Risk decision logs and admin overrides
+  - name: RiskReviews
+    description: Manual risk review queue
+  - name: Disputes
+    description: Dispute lifecycle management
+  - name: DisputeEvidence
+    description: Evidence submission and management for disputes
+  - name: Representment
+    description: Dispute representment simulation
+paths:
+  /api/v1/disputes:
+    get:
+      summary: List disputes
+      description: Returns a paginated list of disputes. Optionally filter by status or payment_intent_id.
+      x-platform:
+        kind: resource
+        entity: Dispute
+        affectsLedger: false
+      operationId: listDisputes
+      tags:
+        - Disputes
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum:
+              - needs_response
+              - under_review
+              - won
+              - lost
+              - accepted
+              - expired
+        - name: payment_intent_id
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Paginated list of disputes.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - pagination
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Dispute"
+                  pagination:
+                    $ref: "#/components/schemas/PaginationMeta"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      summary: Create dispute
+      description: Creates a dispute against a payment intent.
+      x-platform:
+        kind: resource
+        entity: Dispute
+        emitsEvents:
+          - dispute.created
+        affectsLedger: false
+      operationId: createDispute
+      tags:
+        - Disputes
+      security:
+        - MerchantKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - payment_intent_id
+                - reason
+                - amount
+                - currency
+              properties:
+                payment_intent_id:
+                  type: string
+                reason:
+                  type: string
+                  enum:
+                    - fraudulent
+                    - duplicate
+                    - not_received
+                    - product_unacceptable
+                    - subscription_canceled
+                    - other
+                amount:
+                  type: integer
+                  minimum: 1
+                currency:
+                  type: string
+                  minLength: 3
+                  maxLength: 3
+                due_by:
+                  type: string
+                  format: date-time
+                metadata:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "201":
+          description: Dispute created.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - dispute
+                properties:
+                  dispute:
+                    $ref: "#/components/schemas/Dispute"
+        "400":
+          description: Invalid request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Payment intent not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/disputes/{id}:
+    get:
+      summary: Get dispute by ID
+      description: Returns a single dispute.
+      x-platform:
+        kind: resource
+        entity: Dispute
+        affectsLedger: false
+      operationId: getDisputeById
+      tags:
+        - Disputes
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: Dispute found.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - dispute
+                properties:
+                  dispute:
+                    $ref: "#/components/schemas/Dispute"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Dispute not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      summary: Update dispute
+      description: Updates metadata or due_by on an open dispute. Cannot update closed disputes.
+      x-platform:
+        kind: transition
+        entity: Dispute
+        emitsEvents:
+          - dispute.updated
+        affectsLedger: false
+        stateChanges:
+          - metadata_updated
+      operationId: updateDispute
+      tags:
+        - Disputes
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                metadata:
+                  type: object
+                  additionalProperties: true
+                due_by:
+                  type: string
+                  format: date-time
+      responses:
+        "200":
+          description: Dispute updated.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - dispute
+                properties:
+                  dispute:
+                    $ref: "#/components/schemas/Dispute"
+        "400":
+          description: Invalid request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Dispute not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Dispute is closed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/disputes/{id}/accept:
+    post:
+      summary: Accept dispute
+      description: Accepts the dispute, closing it in the customer's favor.
+      x-platform:
+        kind: transition
+        entity: Dispute
+        stateChanges:
+          - needs_response -> accepted
+        emitsEvents:
+          - dispute.accepted
+        affectsLedger: false
+      operationId: acceptDispute
+      tags:
+        - Disputes
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: Dispute accepted.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - dispute
+                properties:
+                  dispute:
+                    $ref: "#/components/schemas/Dispute"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Dispute not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Invalid state transition.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/disputes/{id}/evidence:
+    get:
+      summary: List dispute evidence
+      description: Returns paginated evidence for a dispute.
+      x-platform:
+        kind: resource
+        entity: DisputeEvidence
+        affectsLedger: false
+      operationId: listDisputeEvidence
+      tags:
+        - DisputeEvidence
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: Paginated list of evidence.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - pagination
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DisputeEvidence"
+                  pagination:
+                    $ref: "#/components/schemas/PaginationMeta"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Dispute not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      summary: Add dispute evidence
+      description: Adds a piece of evidence to an open dispute.
+      x-platform:
+        kind: resource
+        entity: DisputeEvidence
+        emitsEvents:
+          - dispute.evidence.created
+        affectsLedger: false
+      operationId: addDisputeEvidence
+      tags:
+        - DisputeEvidence
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - receipt
+                    - shipping_proof
+                    - customer_communication
+                    - service_documentation
+                    - policy_disclosure
+                    - other
+                file_name:
+                  type: string
+                  maxLength: 255
+                file_size:
+                  type: integer
+                  minimum: 1
+                description:
+                  type: string
+                  maxLength: 2000
+      responses:
+        "201":
+          description: Evidence added.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - evidence
+                properties:
+                  evidence:
+                    $ref: "#/components/schemas/DisputeEvidence"
+        "400":
+          description: Invalid request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Dispute not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Dispute is closed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/disputes/{id}/evidence/{evidenceId}:
+    get:
+      summary: Get evidence by ID
+      description: Returns a single piece of evidence.
+      x-platform:
+        kind: resource
+        entity: DisputeEvidence
+        affectsLedger: false
+      operationId: getDisputeEvidenceById
+      tags:
+        - DisputeEvidence
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+        - name: evidenceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Evidence found.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - evidence
+                properties:
+                  evidence:
+                    $ref: "#/components/schemas/DisputeEvidence"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Dispute or evidence not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      summary: Delete evidence
+      description: Deletes unsubmitted evidence from an open dispute.
+      x-platform:
+        kind: transition
+        entity: DisputeEvidence
+        emitsEvents:
+          - dispute.evidence.deleted
+        affectsLedger: false
+        stateChanges:
+          - evidence_removed
+      operationId: deleteDisputeEvidence
+      tags:
+        - DisputeEvidence
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+        - name: evidenceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Evidence deleted.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - deleted
+                  - id
+                properties:
+                  deleted:
+                    type: boolean
+                  id:
+                    type: string
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Dispute or evidence not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Evidence already submitted or dispute closed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/disputes/{id}/evidence/submit:
+    post:
+      summary: Submit all evidence
+      description: Submits all unsubmitted evidence and transitions the dispute to under_review.
+      x-platform:
+        kind: transition
+        entity: Dispute
+        stateChanges:
+          - needs_response -> under_review
+        emitsEvents:
+          - dispute.evidence.submitted
+        affectsLedger: false
+      operationId: submitDisputeEvidence
+      tags:
+        - DisputeEvidence
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: Evidence submitted and dispute moved to under_review.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - dispute
+                  - evidence
+                properties:
+                  dispute:
+                    $ref: "#/components/schemas/Dispute"
+                  evidence:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DisputeEvidence"
+        "400":
+          description: No unsubmitted evidence.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Dispute not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Dispute is closed or invalid transition.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/disputes/{id}/representment:
+    get:
+      summary: Get representment
+      description: Returns the representment for a dispute (paginated wrapper for consistency).
+      x-platform:
+        kind: resource
+        entity: Representment
+        affectsLedger: false
+      operationId: getDisputeRepresentment
+      tags:
+        - Representment
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: Representment list (0 or 1 items).
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - pagination
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Representment"
+                  pagination:
+                    $ref: "#/components/schemas/PaginationMeta"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Dispute not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      summary: Create representment
+      description: Creates a representment for a dispute. Only one per dispute.
+      x-platform:
+        kind: resource
+        entity: Representment
+        emitsEvents:
+          - dispute.representment.created
+        affectsLedger: false
+      operationId: createRepresentment
+      tags:
+        - Representment
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                details:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "201":
+          description: Representment created.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - representment
+                properties:
+                  representment:
+                    $ref: "#/components/schemas/Representment"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Dispute not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Representment already exists or dispute is closed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/disputes/{id}/representment/submit:
+    post:
+      summary: Submit representment
+      description: Submits the representment and transitions the dispute to under_review.
+      x-platform:
+        kind: transition
+        entity: Representment
+        stateChanges:
+          - needs_response -> under_review
+        emitsEvents:
+          - dispute.representment.submitted
+        affectsLedger: false
+      operationId: submitRepresentment
+      tags:
+        - Representment
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: Representment submitted.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - dispute
+                  - representment
+                properties:
+                  dispute:
+                    $ref: "#/components/schemas/Dispute"
+                  representment:
+                    $ref: "#/components/schemas/Representment"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Dispute or representment not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Representment already submitted or invalid transition.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/risk/signals:
+    get:
+      summary: List risk signals
+      description: Returns a paginated list of risk signals for the merchant.
+      x-platform:
+        kind: resource
+        entity: RiskSignal
+        affectsLedger: false
+      operationId: listRiskSignals
+      tags:
+        - RiskSignals
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: Paginated list of risk signals.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - pagination
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                  pagination:
+                    $ref: "#/components/schemas/PaginationMeta"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      summary: Create a risk signal
+      description: Ingests a new risk signal for a given entity.
+      x-platform:
+        kind: resource
+        entity: RiskSignal
+        emitsEvents:
+          - risk_signal.created
+        affectsLedger: false
+      operationId: createRiskSignal
+      tags:
+        - RiskSignals
+      security:
+        - MerchantKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - entity_type
+                - entity_id
+                - signal_type
+                - severity
+              properties:
+                entity_type:
+                  type: string
+                entity_id:
+                  type: string
+                signal_type:
+                  type: string
+                severity:
+                  type: string
+                  enum:
+                    - low
+                    - medium
+                    - high
+                    - critical
+      responses:
+        "201":
+          description: Risk signal created.
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/risk/signals/{id}:
+    get:
+      summary: Get risk signal by ID
+      description: Returns a single risk signal.
+      x-platform:
+        kind: resource
+        entity: RiskSignal
+        affectsLedger: false
+      operationId: getRiskSignalById
+      tags:
+        - RiskSignals
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: Risk signal found.
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Risk signal not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/risk/rulesets:
+    get:
+      summary: List risk rulesets
+      description: Returns a paginated list of risk rulesets.
+      x-platform:
+        kind: resource
+        entity: RiskRuleset
+        affectsLedger: false
+      operationId: listRiskRulesets
+      tags:
+        - RiskRules
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: Paginated list of risk rulesets.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - pagination
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                  pagination:
+                    $ref: "#/components/schemas/PaginationMeta"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      summary: Create a risk ruleset
+      description: Creates a new risk ruleset for the merchant.
+      x-platform:
+        kind: resource
+        entity: RiskRuleset
+        emitsEvents:
+          - risk_ruleset.created
+        affectsLedger: false
+      operationId: createRiskRuleset
+      tags:
+        - RiskRules
+      security:
+        - MerchantKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                metadata:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "201":
+          description: Risk ruleset created.
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/risk/rulesets/{id}:
+    get:
+      summary: Get risk ruleset by ID
+      description: Returns a single risk ruleset.
+      x-platform:
+        kind: resource
+        entity: RiskRuleset
+        affectsLedger: false
+      operationId: getRiskRulesetById
+      tags:
+        - RiskRules
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: Risk ruleset found.
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Risk ruleset not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      summary: Update risk ruleset
+      description: Updates an existing risk ruleset.
+      x-platform:
+        kind: transition
+        entity: RiskRuleset
+        emitsEvents:
+          - risk_ruleset.updated
+        affectsLedger: false
+        stateChanges:
+          - metadata_updated
+      operationId: updateRiskRuleset
+      tags:
+        - RiskRules
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                metadata:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "200":
+          description: Risk ruleset updated.
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Risk ruleset not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      summary: Delete risk ruleset
+      description: Deletes a risk ruleset.
+      x-platform:
+        kind: transition
+        entity: RiskRuleset
+        emitsEvents:
+          - risk_ruleset.deleted
+        affectsLedger: false
+        stateChanges:
+          - active -> deleted
+      operationId: deleteRiskRuleset
+      tags:
+        - RiskRules
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: Risk ruleset deleted.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: boolean
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Risk ruleset not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/risk/rulesets/{id}/rules:
+    get:
+      summary: List rules in ruleset
+      description: Returns a paginated list of rules within a ruleset.
+      x-platform:
+        kind: resource
+        entity: RiskRule
+        affectsLedger: false
+      operationId: listRiskRules
+      tags:
+        - RiskRules
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: Paginated list of rules.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - pagination
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                  pagination:
+                    $ref: "#/components/schemas/PaginationMeta"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Ruleset not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      summary: Add rule to ruleset
+      description: Creates a new rule within a ruleset.
+      x-platform:
+        kind: resource
+        entity: RiskRule
+        emitsEvents:
+          - risk_rule.created
+        affectsLedger: false
+      operationId: createRiskRule
+      tags:
+        - RiskRules
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - condition
+                - action
+              properties:
+                condition:
+                  type: object
+                  additionalProperties: true
+                action:
+                  type: string
+                priority:
+                  type: integer
+                metadata:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "201":
+          description: Rule created.
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Ruleset not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/risk/rulesets/{id}/rules/{ruleId}:
+    get:
+      summary: Get rule by ID
+      description: Returns a single rule within a ruleset.
+      x-platform:
+        kind: resource
+        entity: RiskRule
+        affectsLedger: false
+      operationId: getRiskRuleById
+      tags:
+        - RiskRules
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+        - name: ruleId
+          in: path
+          required: true
+          description: Rule identifier.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Rule found.
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Ruleset or rule not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      summary: Update rule
+      description: Updates an existing rule within a ruleset.
+      x-platform:
+        kind: transition
+        entity: RiskRule
+        emitsEvents:
+          - risk_rule.updated
+        affectsLedger: false
+        stateChanges:
+          - rule_updated
+      operationId: updateRiskRule
+      tags:
+        - RiskRules
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+        - name: ruleId
+          in: path
+          required: true
+          description: Rule identifier.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                condition:
+                  type: object
+                  additionalProperties: true
+                action:
+                  type: string
+                priority:
+                  type: integer
+                metadata:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "200":
+          description: Rule updated.
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Ruleset or rule not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      summary: Delete rule
+      description: Deletes a rule from a ruleset.
+      x-platform:
+        kind: transition
+        entity: RiskRule
+        emitsEvents:
+          - risk_rule.deleted
+        affectsLedger: false
+        stateChanges:
+          - rule_removed
+      operationId: deleteRiskRule
+      tags:
+        - RiskRules
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+        - name: ruleId
+          in: path
+          required: true
+          description: Rule identifier.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Rule deleted.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: boolean
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Ruleset or rule not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/risk/decisions:
+    get:
+      summary: List risk decisions
+      description: Returns a paginated list of risk decisions.
+      x-platform:
+        kind: resource
+        entity: RiskDecision
+        affectsLedger: false
+      operationId: listRiskDecisions
+      tags:
+        - RiskDecisions
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: Paginated list of risk decisions.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - pagination
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                  pagination:
+                    $ref: "#/components/schemas/PaginationMeta"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      summary: Create a risk decision
+      description: Records a risk decision for a given entity.
+      x-platform:
+        kind: resource
+        entity: RiskDecision
+        emitsEvents:
+          - risk_decision.created
+        affectsLedger: false
+      operationId: createRiskDecision
+      tags:
+        - RiskDecisions
+      security:
+        - MerchantKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - entity_type
+                - entity_id
+                - outcome
+                - risk_score
+                - reason
+              properties:
+                entity_type:
+                  type: string
+                entity_id:
+                  type: string
+                outcome:
+                  type: string
+                  enum:
+                    - approve
+                    - decline
+                    - review
+                risk_score:
+                  type: number
+                  minimum: 0
+                  maximum: 100
+                reason:
+                  type: string
+      responses:
+        "201":
+          description: Risk decision created.
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/risk/decisions/{id}:
+    get:
+      summary: Get risk decision by ID
+      description: Returns a single risk decision.
+      x-platform:
+        kind: resource
+        entity: RiskDecision
+        affectsLedger: false
+      operationId: getRiskDecisionById
+      tags:
+        - RiskDecisions
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: Risk decision found.
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Risk decision not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      summary: Update risk decision
+      description: Updates an existing risk decision (e.g. override outcome).
+      x-platform:
+        kind: transition
+        entity: RiskDecision
+        emitsEvents:
+          - risk_decision.updated
+        affectsLedger: false
+        stateChanges:
+          - pending -> reviewed
+          - metadata_updated
+      operationId: updateRiskDecision
+      tags:
+        - RiskDecisions
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                outcome:
+                  type: string
+                  enum:
+                    - approve
+                    - decline
+                    - review
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Risk decision updated.
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Risk decision not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/risk/lists:
+    get:
+      summary: List risk lists
+      description: Returns a paginated list of risk lists (blocklists/allowlists).
+      x-platform:
+        kind: resource
+        entity: RiskList
+        affectsLedger: false
+      operationId: listRiskLists
+      tags:
+        - RiskRules
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: Paginated list of risk lists.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - pagination
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                  pagination:
+                    $ref: "#/components/schemas/PaginationMeta"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      summary: Create a risk list
+      description: Creates a new risk list (blocklist or allowlist).
+      x-platform:
+        kind: resource
+        entity: RiskList
+        emitsEvents:
+          - risk_list.created
+        affectsLedger: false
+      operationId: createRiskList
+      tags:
+        - RiskRules
+      security:
+        - MerchantKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - type
+              properties:
+                name:
+                  type: string
+                type:
+                  type: string
+                  enum:
+                    - blocklist
+                    - allowlist
+                description:
+                  type: string
+      responses:
+        "201":
+          description: Risk list created.
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/risk/lists/{id}:
+    get:
+      summary: Get risk list by ID
+      description: Returns a single risk list.
+      x-platform:
+        kind: resource
+        entity: RiskList
+        affectsLedger: false
+      operationId: getRiskListById
+      tags:
+        - RiskRules
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: Risk list found.
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Risk list not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      summary: Update risk list
+      description: Updates an existing risk list.
+      x-platform:
+        kind: transition
+        entity: RiskList
+        emitsEvents:
+          - risk_list.updated
+        affectsLedger: false
+        stateChanges:
+          - metadata_updated
+      operationId: updateRiskList
+      tags:
+        - RiskRules
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        "200":
+          description: Risk list updated.
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Risk list not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      summary: Delete risk list
+      description: Deletes a risk list.
+      x-platform:
+        kind: transition
+        entity: RiskList
+        emitsEvents:
+          - risk_list.deleted
+        affectsLedger: false
+        stateChanges:
+          - active -> deleted
+      operationId: deleteRiskList
+      tags:
+        - RiskRules
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      responses:
+        "200":
+          description: Risk list deleted.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: boolean
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Risk list not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/risk/lists/{id}/entries:
+    get:
+      summary: List entries in a risk list
+      description: Returns a paginated list of entries within a risk list.
+      x-platform:
+        kind: resource
+        entity: RiskListEntry
+        affectsLedger: false
+      operationId: listRiskListEntries
+      tags:
+        - RiskRules
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+        - $ref: "#/components/parameters/PageParam"
+        - $ref: "#/components/parameters/PageSizeParam"
+      responses:
+        "200":
+          description: Paginated list of entries.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - data
+                  - pagination
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                  pagination:
+                    $ref: "#/components/schemas/PaginationMeta"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Risk list not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      summary: Add entry to risk list
+      description: Adds a new entry to a risk list.
+      x-platform:
+        kind: resource
+        entity: RiskListEntry
+        emitsEvents:
+          - risk_list_entry.created
+        affectsLedger: false
+      operationId: createRiskListEntry
+      tags:
+        - RiskRules
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - value
+              properties:
+                value:
+                  type: string
+                metadata:
+                  type: object
+                  additionalProperties: true
+      responses:
+        "201":
+          description: Entry created.
+          content:
+            application/json:
+              schema:
+                type: object
+        "400":
+          description: Invalid request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Risk list not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/risk/lists/{id}/entries/{entryId}:
+    get:
+      summary: Get entry by ID
+      description: Returns a single entry within a risk list.
+      x-platform:
+        kind: resource
+        entity: RiskListEntry
+        affectsLedger: false
+      operationId: getRiskListEntryById
+      tags:
+        - RiskRules
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+        - name: entryId
+          in: path
+          required: true
+          description: Risk list entry identifier.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Entry found.
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Risk list or entry not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      summary: Delete entry
+      description: Deletes an entry from a risk list.
+      x-platform:
+        kind: transition
+        entity: RiskListEntry
+        emitsEvents:
+          - risk_list_entry.deleted
+        affectsLedger: false
+        stateChanges:
+          - entry_removed
+      operationId: deleteRiskListEntry
+      tags:
+        - RiskRules
+      security:
+        - MerchantKeyAuth: []
+      parameters:
+        - $ref: "#/components/parameters/PathId"
+        - name: entryId
+          in: path
+          required: true
+          description: Risk list entry identifier.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Entry deleted.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: boolean
+        "401":
+          description: Missing or invalid API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Risk list or entry not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+components:
+  securitySchemes:
+    MerchantKeyAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API Key
+      description: |
+        Bearer API key for merchant-scoped operations. Pass as `Authorization: Bearer {{merchantApiKey}}`.
+    PlatformAdminKeyAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API Key
+      description: |
+        Bearer API key for platform admin operations. Pass as `Authorization: Bearer {{platformAdminKey}}`.
+  schemas:
+    ErrorResponse:
+      description: Standard error response envelope returned for 4xx/5xx responses.
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              description: Machine-readable error code.
+            message:
+              type: string
+              description: Human-readable error description.
+    PaginationMeta:
+      description: Pagination metadata included in list responses.
+      type: object
+      required:
+        - page
+        - pageSize
+        - total
+        - hasMore
+      properties:
+        page:
+          type: integer
+          description: Current page number (1-indexed).
+        pageSize:
+          type: integer
+          description: Number of results per page.
+        total:
+          type: integer
+          description: Total number of matching records.
+        hasMore:
+          type: boolean
+          description: Whether additional pages exist.
+    CreditNote:
+      description: A credit note issued against an invoice.
+      type: object
+      properties:
+        id:
+          type: string
+        merchant_id:
+          type: string
+        invoice_id:
+          type: string
+        number:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum:
+            - issued
+            - void
+        reason:
+          type: string
+          nullable: true
+        amount:
+          type: integer
+        currency:
+          type: string
+        voided_at:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    CreditNoteLineItem:
+      description: A line item on a credit note.
+      type: object
+      properties:
+        id:
+          type: string
+        credit_note_id:
+          type: string
+        description:
+          type: string
+        quantity:
+          type: integer
+        unit_amount:
+          type: integer
+        amount:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+    Event:
+      description: A domain event representing a state change in the system.
+      type: object
+      properties:
+        id:
+          type: string
+        merchant_id:
+          type: string
+        type:
+          type: string
+          description: Event type (e.g. payment_intent.succeeded).
+        entity_type:
+          type: string
+          description: Type of entity that triggered the event.
+        entity_id:
+          type: string
+          description: ID of the entity that triggered the event.
+        payload:
+          type: object
+          description: Event payload with entity snapshot.
+        actor_type:
+          type: string
+          nullable: true
+        actor_id:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+    WebhookEndpoint:
+      description: A registered webhook endpoint for receiving event notifications.
+      type: object
+      properties:
+        id:
+          type: string
+        merchant_id:
+          type: string
+        url:
+          type: string
+          format: uri
+        is_active:
+          type: boolean
+        enabled_events:
+          type: array
+          items:
+            type: string
+        secret:
+          type: string
+          description: Only included on creation and rotate.
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    WebhookDelivery:
+      description: A webhook delivery record with attempt history.
+      type: object
+      properties:
+        id:
+          type: string
+        merchant_id:
+          type: string
+        webhook_endpoint_id:
+          type: string
+        event_type:
+          type: string
+        payload:
+          type: object
+        status:
+          type: string
+          enum:
+            - PENDING
+            - DELIVERED
+            - FAILED
+        delivered_at:
+          type: string
+          format: date-time
+          nullable: true
+        next_attempt_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        attempts:
+          type: array
+          items:
+            type: object
+            properties:
+              attempt_number:
+                type: integer
+              response_status:
+                type: integer
+                nullable: true
+              created_at:
+                type: string
+                format: date-time
+              completed_at:
+                type: string
+                format: date-time
+                nullable: true
+    Adjustment:
+      description: A credit or debit adjustment.
+      type: object
+      properties:
+        id:
+          type: string
+        merchant_id:
+          type: string
+        type:
+          type: string
+          enum:
+            - credit
+            - debit
+        amount:
+          type: integer
+        currency:
+          type: string
+        description:
+          type: string
+          nullable: true
+        reference:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    Dispute:
+      description: A payment dispute.
+      type: object
+      properties:
+        id:
+          type: string
+        merchant_id:
+          type: string
+        payment_intent_id:
+          type: string
+        status:
+          type: string
+          enum:
+            - needs_response
+            - under_review
+            - won
+            - lost
+            - accepted
+            - expired
+        reason:
+          type: string
+          enum:
+            - fraudulent
+            - duplicate
+            - not_received
+            - product_unacceptable
+            - subscription_canceled
+            - other
+        amount:
+          type: integer
+        currency:
+          type: string
+        due_by:
+          type: string
+          format: date-time
+          nullable: true
+        closed_at:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    DisputeEvidence:
+      description: A piece of evidence for a dispute.
+      type: object
+      properties:
+        id:
+          type: string
+        dispute_id:
+          type: string
+        type:
+          type: string
+          enum:
+            - receipt
+            - shipping_proof
+            - customer_communication
+            - service_documentation
+            - policy_disclosure
+            - other
+        file_name:
+          type: string
+          nullable: true
+        file_size:
+          type: integer
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        submitted_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    Representment:
+      description: A dispute representment.
+      type: object
+      properties:
+        id:
+          type: string
+        dispute_id:
+          type: string
+        submitted_at:
+          type: string
+          format: date-time
+          nullable: true
+        outcome:
+          type: string
+          nullable: true
+        details:
+          type: object
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    OnboardingProfile:
+      description: Merchant onboarding / KYB profile.
+      type: object
+      properties:
+        id:
+          type: string
+        merchant_id:
+          type: string
+        business_name:
+          type: string
+          nullable: true
+        business_type:
+          type: string
+          nullable: true
+        tax_id:
+          type: string
+          nullable: true
+        website:
+          type: string
+          nullable: true
+        country:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum:
+            - started
+            - submitted
+            - under_review
+            - approved
+            - denied
+            - withdrawn
+        submitted_at:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    Owner:
+      description: Beneficial owner attached to an onboarding profile.
+      type: object
+      properties:
+        id:
+          type: string
+        onboarding_profile_id:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+          nullable: true
+        ownership_percentage:
+          type: integer
+          nullable: true
+        title:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    OnboardingDocument:
+      description: Document record for KYB verification.
+      type: object
+      properties:
+        id:
+          type: string
+        onboarding_profile_id:
+          type: string
+        type:
+          type: string
+          enum:
+            - government_id
+            - proof_of_address
+            - bank_statement
+            - tax_return
+            - articles_of_incorporation
+            - other
+        status:
+          type: string
+          enum:
+            - pending
+            - verified
+            - rejected
+        file_name:
+          type: string
+        file_size:
+          type: integer
+          nullable: true
+        mime_type:
+          type: string
+          nullable: true
+        review_note:
+          type: string
+          nullable: true
+        reviewed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    OnboardingBankAccount:
+      description: Bank account attached to an onboarding profile.
+      type: object
+      properties:
+        id:
+          type: string
+        onboarding_profile_id:
+          type: string
+        bank_name:
+          type: string
+        account_holder_name:
+          type: string
+        routing_number:
+          type: string
+        account_number_last4:
+          type: string
+        account_type:
+          type: string
+          enum:
+            - checking
+            - savings
+        is_verified:
+          type: boolean
+        is_primary:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    UnderwritingCase:
+      description: Underwriting review case linked to an onboarding profile.
+      type: object
+      properties:
+        id:
+          type: string
+        onboarding_profile_id:
+          type: string
+        assigned_to:
+          type: string
+          nullable: true
+        risk_score:
+          type: integer
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    UnderwritingDecision:
+      description: Decision recorded against an underwriting case.
+      type: object
+      properties:
+        id:
+          type: string
+        underwriting_case_id:
+          type: string
+        result:
+          type: string
+          enum:
+            - approved
+            - denied
+            - escalated
+            - pending_info
+        reason:
+          type: string
+          nullable: true
+        decided_by:
+          type: string
+          nullable: true
+        decided_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    Subscription:
+      description: A recurring billing subscription.
+      type: object
+      properties:
+        id:
+          type: string
+        merchant_id:
+          type: string
+        customer_id:
+          type: string
+        status:
+          type: string
+          enum:
+            - incomplete
+            - incomplete_expired
+            - trialing
+            - active
+            - past_due
+            - paused
+            - canceled
+            - unpaid
+        current_period_start:
+          type: string
+          format: date-time
+        current_period_end:
+          type: string
+          format: date-time
+        cancel_at_period_end:
+          type: boolean
+        canceled_at:
+          type: string
+          format: date-time
+          nullable: true
+        ended_at:
+          type: string
+          format: date-time
+          nullable: true
+        trial_start:
+          type: string
+          format: date-time
+          nullable: true
+        trial_end:
+          type: string
+          format: date-time
+          nullable: true
+        default_payment_method:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SubscriptionItem"
+    SubscriptionItem:
+      description: A line item on a subscription linking a price.
+      type: object
+      properties:
+        id:
+          type: string
+        subscription_id:
+          type: string
+        price_id:
+          type: string
+        quantity:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    Invoice:
+      description: An invoice representing an amount owed by a customer.
+      type: object
+      properties:
+        id:
+          type: string
+        merchant_id:
+          type: string
+        customer_id:
+          type: string
+        subscription_id:
+          type: string
+          nullable: true
+        number:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum:
+            - draft
+            - open
+            - paid
+            - void
+            - uncollectible
+            - past_due
+        currency:
+          type: string
+        subtotal:
+          type: integer
+        tax:
+          type: integer
+        total:
+          type: integer
+        amount_paid:
+          type: integer
+        amount_due:
+          type: integer
+        due_date:
+          type: string
+          format: date-time
+          nullable: true
+        paid_at:
+          type: string
+          format: date-time
+          nullable: true
+        voided_at:
+          type: string
+          format: date-time
+          nullable: true
+        period_start:
+          type: string
+          format: date-time
+          nullable: true
+        period_end:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/InvoiceItem"
+    InvoiceItem:
+      description: A line item on an invoice.
+      type: object
+      properties:
+        id:
+          type: string
+        invoice_id:
+          type: string
+        description:
+          type: string
+        quantity:
+          type: integer
+        unit_amount:
+          type: integer
+        amount:
+          type: integer
+        currency:
+          type: string
+        price_id:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    InvoiceAttempt:
+      description: A payment attempt against an invoice.
+      type: object
+      properties:
+        id:
+          type: string
+        invoice_id:
+          type: string
+        attempt_number:
+          type: integer
+        amount:
+          type: integer
+        status:
+          type: string
+          enum:
+            - succeeded
+            - failed
+        error_message:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+    Report:
+      description: An on-demand report generated for a merchant.
+      type: object
+      properties:
+        id:
+          type: string
+        merchant_id:
+          type: string
+        type:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum:
+            - queued
+            - processing
+            - completed
+            - failed
+        parameters:
+          type: object
+          nullable: true
+        result_url:
+          type: string
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    Export:
+      description: A data export requested by a merchant.
+      type: object
+      properties:
+        id:
+          type: string
+        merchant_id:
+          type: string
+        type:
+          type: string
+        format:
+          type: string
+          enum:
+            - csv
+            - json
+            - pdf
+        status:
+          type: string
+          enum:
+            - queued
+            - processing
+            - completed
+            - failed
+        parameters:
+          type: object
+          nullable: true
+        result_url:
+          type: string
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+        row_count:
+          type: integer
+          nullable: true
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    ExportSchedule:
+      description: A recurring export schedule configured by a merchant.
+      type: object
+      properties:
+        id:
+          type: string
+        merchant_id:
+          type: string
+        type:
+          type: string
+        format:
+          type: string
+          enum:
+            - csv
+            - json
+            - pdf
+        frequency:
+          type: string
+          enum:
+            - daily
+            - weekly
+            - monthly
+        parameters:
+          type: object
+          nullable: true
+        is_active:
+          type: boolean
+        last_run_at:
+          type: string
+          format: date-time
+          nullable: true
+        next_run_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    Job:
+      description: A platform background job.
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        status:
+          type: string
+          enum:
+            - queued
+            - running
+            - completed
+            - failed
+            - canceled
+        payload:
+          type: object
+          nullable: true
+        result:
+          type: object
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
+        attempts:
+          type: integer
+        max_attempts:
+          type: integer
+        scheduled_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    DeadLetter:
+      description: A dead letter entry for failed processing.
+      type: object
+      properties:
+        id:
+          type: string
+        source_type:
+          type: string
+        source_id:
+          type: string
+          nullable: true
+        payload:
+          type: object
+        error_message:
+          type: string
+        status:
+          type: string
+          enum:
+            - pending
+            - reprocessed
+            - discarded
+        reprocessed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+  parameters:
+    IdempotencyKey:
+      in: header
+      name: Idempotency-Key
+      required: true
+      description: |
+        Client-generated unique key for safe request retries. Identical key + payload replays the original response.
+      schema:
+        type: string
+        example: idem-key-a1b2c3d4
+    PageParam:
+      in: query
+      name: page
+      description: Page number (1-indexed).
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSizeParam:
+      in: query
+      name: pageSize
+      description: Number of results per page (max 100).
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
+    PathId:
+      in: path
+      name: id
+      required: true
+      description: Resource identifier.
+      schema:
+        type: string
+  headers:
+    X-Signature:
+      description: HMAC SHA-256 signature computed over `timestamp.payload`.
+      schema:
+        type: string
+    X-Timestamp:
+      description: Unix timestamp (seconds) at webhook delivery time.
+      schema:
+        type: string
+    X-Event-Type:
+      description: Webhook event type string (e.g. `payment_intent.succeeded`).
+      schema:
+        type: string
+    X-RateLimit-Limit:
+      description: Maximum requests allowed in the current fixed window.
+      schema:
+        type: string
+    X-RateLimit-Remaining:
+      description: Requests remaining in the current fixed window.
+      schema:
+        type: string
+    X-RateLimit-Reset:
+      description: Unix timestamp when the current rate-limit window resets.
+      schema:
+        type: string
