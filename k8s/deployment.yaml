@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: atlas-risk-disputes
+  namespace: atlas-production
+  labels:
+    app: atlas-risk-disputes
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: atlas-risk-disputes
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: atlas-risk-disputes
+    spec:
+      containers:
+        - name: atlas-risk-disputes
+          image: PLACEHOLDER_ECR_REGISTRY/atlas-risk-disputes:latest
+          ports:
+            - containerPort: 3000
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: atlas-risk-disputes-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      terminationGracePeriodSeconds: 30
