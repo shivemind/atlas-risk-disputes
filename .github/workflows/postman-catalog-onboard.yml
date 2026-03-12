@@ -25,7 +25,7 @@ jobs:
 
       - name: Run Collection
         run: |
-          postman collection run 52400725-5ce4d4a3-7ab8-4946-a96c-fc2e05bb5a99 \
+          postman collection run 52400725-babd6cf7-305b-4078-8680-73462cba1398 \
             -e 52400725-bdb3cc97-1829-4c13-9f45-ef9af8512c40 \
             --postman-api-key ${{ secrets.POSTMAN_API_KEY }}
 
@@ -38,5 +38,5 @@ jobs:
         if: always()
         run: |
           echo "### Postman Catalog Onboard - Atlas Risk & Disputes" >> $GITHUB_STEP_SUMMARY
-          echo "- **Collection**: 52400725-5ce4d4a3-7ab8-4946-a96c-fc2e05bb5a99" >> $GITHUB_STEP_SUMMARY
+          echo "- **Collection**: 52400725-babd6cf7-305b-4078-8680-73462cba1398" >> $GITHUB_STEP_SUMMARY
           echo "- **Monitor**: 52400725-1f11e446-03df-4a80-bec4-a1ab3bb3f7e1" >> $GITHUB_STEP_SUMMARY
