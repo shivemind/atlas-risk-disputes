@@ -1,0 +1,23 @@
+name: Postman Catalog Link
+on:
+  workflow_dispatch:
+
+jobs:
+  link-workspace:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: postman-cs/postman-repo-sync-action@v0
+        with:
+          project-name: atlas-risk-disputes
+          workspace-id: 44fd816d-618b-4d67-bba0-6505364909de
+          generate-ci-workflow: false
+          repo-write-mode: none
+          environments-json: '["prod","dev"]'
+          env-runtime-urls-json: '{"prod":"https://atlas-risk-disputes.vercel.app","dev":"http://localhost:3000"}'
+          postman-api-key: ${{ secrets.POSTMAN_API_KEY }}
+          postman-access-token: ${{ secrets.POSTMAN_ACCESS_TOKEN }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
