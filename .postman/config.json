@@ -1,0 +1,20 @@
+{
+  "workspace": {
+    "id": "44fd816d-618b-4d67-bba0-6505364909de"
+  },
+  "entities": {
+    "collections": [
+      "../postman/collections/atlas-production-atlas-risk-disputes_52400725-34e9406d-3fa4-4074-8965-7e38eaa5d811.postman_collection.json",
+      "../postman/collections/atlas-production-atlas-risk-disputes_52400725-47f49f1c-3d5e-4889-ac7f-75ee1a95b0c1.postman_collection.json",
+      "../postman/collections/Atlas Risk & Disputes API_52400725-525b7d5b-c66f-48cf-83e3-52409f917e37.postman_collection.json",
+      "../postman/collections/atlas-production-atlas-risk-disputes_52400725-b65a68dd-4291-44af-8239-3cc1dd885d04.postman_collection.json"
+    ],
+    "environments": [
+      "../postman/environments/Atlas Risk & Disputes API - Dev_52400725-17ec0ebc-0844-4c4f-9a10-26318c42aa73.postman_environment.json",
+      "../postman/environments/Atlas Risk & Disputes API - Production_52400725-bdb3cc97-1829-4c13-9f45-ef9af8512c40.postman_environment.json"
+    ],
+    "specs": [],
+    "flows": [],
+    "globals": []
+  }
+}
