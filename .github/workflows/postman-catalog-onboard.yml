@@ -8,7 +8,7 @@ on:
     - cron: '0 */6 * * *'
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   collection-run:
@@ -25,22 +25,18 @@ jobs:
 
       - name: Run Collection
         run: |
-          postman collection run 52400725-525b7d5b-c66f-48cf-83e3-52409f917e37 \
+          postman collection run 52400725-5ce4d4a3-7ab8-4946-a96c-fc2e05bb5a99 \
             -e 52400725-bdb3cc97-1829-4c13-9f45-ef9af8512c40 \
-            --postman-api-key ${{ secrets.POSTMAN_API_KEY }} \
-            || true
+            --postman-api-key ${{ secrets.POSTMAN_API_KEY }}
 
       - name: Trigger Monitor Run
         run: |
-          curl -s -X POST "https://api.getpostman.com/monitors/1f11e3f5-343e-4f10-a7ac-2b3e903b4785/run" \
-            -H "x-api-key: ${{ secrets.POSTMAN_API_KEY }}" \
-            || true
+          curl -sf -X POST "https://api.getpostman.com/monitors/52400725-1f11e404-8cb9-4dc0-b949-6737ffb1e816/run" \
+            -H "x-api-key: ${{ secrets.POSTMAN_API_KEY }}"
 
       - name: Summary
         if: always()
         run: |
-          echo "### Postman Catalog Onboard" >> $GITHUB_STEP_SUMMARY
-          echo "- **Collection**: 52400725-525b7d5b-c66f-48cf-83e3-52409f917e37" >> $GITHUB_STEP_SUMMARY
-          echo "- **Environment**: 52400725-bdb3cc97-1829-4c13-9f45-ef9af8512c40" >> $GITHUB_STEP_SUMMARY
-          echo "- **Workspace**: [44fd816d-618b-4d67-bba0-6505364909de](https://go.postman.co/workspace/44fd816d-618b-4d67-bba0-6505364909de)" >> $GITHUB_STEP_SUMMARY
-          echo "- **Monitor**: 1f11e3f5-343e-4f10-a7ac-2b3e903b4785" >> $GITHUB_STEP_SUMMARY
+          echo "### Postman Catalog Onboard - Atlas Risk & Disputes" >> $GITHUB_STEP_SUMMARY
+          echo "- **Collection**: 52400725-5ce4d4a3-7ab8-4946-a96c-fc2e05bb5a99" >> $GITHUB_STEP_SUMMARY
+          echo "- **Monitor**: 52400725-1f11e404-8cb9-4dc0-b949-6737ffb1e816" >> $GITHUB_STEP_SUMMARY
