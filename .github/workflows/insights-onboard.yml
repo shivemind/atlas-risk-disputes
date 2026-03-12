@@ -1,0 +1,37 @@
+name: Insights Catalog Onboarding
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  onboard:
+    name: Link to API Catalog
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: postman-cs/postman-insights-onboarding-action@v0
+        id: insights
+        with:
+          project-name: atlas-risk-disputes
+          workspace-id: 44fd816d-618b-4d67-bba0-6505364909de
+          environment-id: bdb3cc97-1829-4c13-9f45-ef9af8512c40
+          cluster-name: atlas-production
+          git-owner: shivemind
+          git-repository-name: atlas-risk-disputes
+          postman-access-token: ${{ secrets.POSTMAN_ACCESS_TOKEN }}
+          postman-api-key: ${{ secrets.POSTMAN_API_KEY }}
+          postman-team-id: ${{ secrets.POSTMAN_TEAM_ID }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          poll-timeout-seconds: "180"
+
+      - name: Report
+        if: always()
+        run: |
+          echo "Status: ${{ steps.insights.outputs.status }}"
+          echo "Service: ${{ steps.insights.outputs.discovered-service-name }}"
+          echo "App ID: ${{ steps.insights.outputs.application-id }}"
+          echo "Verification Token: ${{ steps.insights.outputs.verification-token }}"
