@@ -31,7 +31,7 @@ jobs:
 
       - name: Trigger Monitor Run
         run: |
-          curl -sf -X POST "https://api.getpostman.com/monitors/52400725-1f11e404-8cb9-4dc0-b949-6737ffb1e816/run" \
+          curl -sf -X POST "https://api.getpostman.com/monitors/52400725-1f11e446-03df-4a80-bec4-a1ab3bb3f7e1/run" \
             -H "x-api-key: ${{ secrets.POSTMAN_API_KEY }}"
 
       - name: Summary
@@ -39,4 +39,4 @@ jobs:
         run: |
           echo "### Postman Catalog Onboard - Atlas Risk & Disputes" >> $GITHUB_STEP_SUMMARY
           echo "- **Collection**: 52400725-5ce4d4a3-7ab8-4946-a96c-fc2e05bb5a99" >> $GITHUB_STEP_SUMMARY
-          echo "- **Monitor**: 52400725-1f11e404-8cb9-4dc0-b949-6737ffb1e816" >> $GITHUB_STEP_SUMMARY
+          echo "- **Monitor**: 52400725-1f11e446-03df-4a80-bec4-a1ab3bb3f7e1" >> $GITHUB_STEP_SUMMARY
