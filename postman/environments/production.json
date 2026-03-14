@@ -1,0 +1,32 @@
+﻿{
+    "id":  "bdb3cc97-1829-4c13-9f45-ef9af8512c40",
+    "name":  "Atlas Risk \u0026 Disputes API - Production",
+    "owner":  "52400725",
+    "createdAt":  "2026-03-11T21:31:59.000Z",
+    "updatedAt":  "2026-03-14T03:05:13.000Z",
+    "values":  [
+                   {
+                       "key":  "baseUrl",
+                       "value":  "https://atlas-risk-disputes.vercel.app",
+                       "enabled":  true
+                   },
+                   {
+                       "key":  "apiVersion",
+                       "value":  "0.2.0",
+                       "enabled":  true
+                   },
+                   {
+                       "key":  "apiKey",
+                       "value":  "test-api-key",
+                       "enabled":  true,
+                       "type":  "secret"
+                   },
+                   {
+                       "key":  "githubRepo",
+                       "value":  "https://github.com/shivemind/atlas-risk-disputes",
+                       "enabled":  true
+                   }
+               ],
+    "uid":  "52400725-bdb3cc97-1829-4c13-9f45-ef9af8512c40",
+    "isPublic":  false
+}
