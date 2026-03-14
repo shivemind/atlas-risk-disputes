@@ -2,6 +2,6 @@ workspace:
   id: 44fd816d-618b-4d67-bba0-6505364909de
 cloudResources:
   collections:
-    ../postman/collections/atlas-risk-disputes-api.json: 10397d49-c072-4d52-bbca-0f6e52cffc76
+    ../postman/collections/atlas-risk-disputes-api.json: 134d28ce-cd6e-4bd9-acbf-a4a5c0155225
   environments:
     ../postman/environments/production.json: bdb3cc97-1829-4c13-9f45-ef9af8512c40
